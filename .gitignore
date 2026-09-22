@@ -1,0 +1,38 @@
+# Virtual environment
+venv/
+env/
+.venv
+
+# Data files
+data/raw/*.csv
+data/processed/*.csv
+data/validation_logs/*.json
+
+# Models
+models/*.pkl
+models/*.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
