@@ -1,4 +1,4 @@
-# 🌦️ Weather ML Pipeline - Production-Ready MLOps
+# 🌦️ Weather ML Data Quality Pipeline - Production-Ready MLOps
 
 A complete, production-grade data quality monitoring pipeline that demonstrates MLOps best practices. Fetches weather data, validates quality, stores in PostgreSQL, and monitors data quality over time.
 

@@ -1,5 +1,8 @@
 FROM python:3.11-slim
 
+LABEL description="Weather ML Data Quality Pipeline"
+LABEL version="1.0"
+
 WORKDIR /app
 
 # Install system dependencies
