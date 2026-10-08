@@ -8,6 +8,16 @@ on:
   schedule:
     # Run daily at 2 AM UTC
     - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to test'
+        required: false
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
 
 jobs:
   test:
@@ -29,6 +39,13 @@ jobs:
           - 5432:5432
 
     steps:
+    - name: Display Workflow Trigger Info
+      run: |
+        echo "Workflow triggered by: ${{ github.event_name }}"
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          echo "Environment: ${{ github.event.inputs.environment }}"
+        fi
+
     - name: Checkout code
       uses: actions/checkout@v4
 
