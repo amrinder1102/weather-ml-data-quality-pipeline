@@ -98,6 +98,89 @@ def save_report(report: dict, output_path: str) -> None:
         json.dump(report, f, indent=2)
 
 
+def validate_data_db(weather_data: list) -> tuple:
+    """
+    Validate weather data from API and return processed data.
+    Returns (quality_score, report, proceed, processed_data_list)
+    """
+    df = pd.DataFrame(weather_data)
+    results = {}
+    checks_passed = 0
+
+    required = ["date", "city", "temp_max", "temp_min", "humidity", "pressure", "wind_speed"]
+    missing = set(required) - set(df.columns)
+    if missing:
+        results["schema"] = f"FAILED: Missing columns {missing}"
+    else:
+        results["schema"] = "PASSED"
+        checks_passed += 1
+
+    missing_issues = []
+    if df["temp_max"].isna().sum() > 0:
+        missing_issues.append(f"temp_max: {df['temp_max'].isna().sum()} missing")
+    for col in ["humidity", "pressure", "wind_speed"]:
+        pct = df[col].isna().sum() / len(df)
+        if pct > 0.05:
+            missing_issues.append(f"{col}: {pct*100:.1f}% missing")
+
+    if missing_issues:
+        results["missing_values"] = f"FAILED: {', '.join(missing_issues)}"
+    else:
+        results["missing_values"] = "PASSED"
+        checks_passed += 1
+
+    bounds_issues = []
+    for col, (min_val, max_val) in [
+        ("temp_max", (-50, 70)),
+        ("temp_min", (-50, 70)),
+        ("humidity", (0, 100)),
+        ("pressure", (900, 1100)),
+        ("wind_speed", (0, 100)),
+    ]:
+        out_of_bounds = ((df[col] < min_val) | (df[col] > max_val)).sum()
+        if out_of_bounds > 0:
+            bounds_issues.append(f"{col}: {out_of_bounds} out of bounds")
+
+    if bounds_issues:
+        results["bounds"] = f"FAILED: {', '.join(bounds_issues)}"
+    else:
+        results["bounds"] = "PASSED"
+        checks_passed += 1
+
+    violations = (df["temp_min"] > df["temp_max"]).sum()
+    if violations > 0:
+        results["consistency"] = f"FAILED: {violations} rows have temp_min > temp_max"
+    else:
+        results["consistency"] = "PASSED"
+        checks_passed += 1
+
+    temp_std = df["temp_max"].std()
+    if temp_std < 0.5:
+        results["distribution"] = f"FAILED: Low variance (std={temp_std:.2f})"
+    else:
+        results["distribution"] = "PASSED"
+        checks_passed += 1
+
+    quality_score = (checks_passed / 5) * 100
+    proceed = quality_score >= 80
+
+    processed_data = []
+    if proceed:
+        processed_df = _process_data(df)
+        processed_data = processed_df.to_dict("records")
+
+    report = {
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "quality_score": round(quality_score, 1),
+        "status": "PASSED" if proceed else "FAILED",
+        "checks": results,
+        "records": len(df),
+        "processed_records": len(processed_data) if proceed else 0,
+    }
+
+    return quality_score, report, proceed, processed_data
+
+
 def _process_data(df: pd.DataFrame) -> pd.DataFrame:
     """Clean and engineer features for training."""
     df = df.copy()

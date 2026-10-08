@@ -3,6 +3,10 @@ venv/
 env/
 .venv
 
+# Logs
+logs/
+*.log
+
 # Data files
 data/raw/*.csv
 data/processed/*.csv
