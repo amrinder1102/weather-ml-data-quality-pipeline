@@ -82,7 +82,7 @@ class TestCompleteness:
         sql = """
         SELECT COUNT(*)
         FROM processed_weather
-        WHERE temp_current IS NULL
+        WHERE temp_max IS NULL OR temp_min IS NULL
         """
         result = db.query(sql)[0][0]
         assert result == 0, f"Found {result} records without temperature"

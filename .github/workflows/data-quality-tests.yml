@@ -1,0 +1,128 @@
+name: Data Quality Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres_pwd
+          POSTGRES_DB: weather_pipeline
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Initialize database schema
+      env:
+        PGPASSWORD: postgres_pwd
+      run: |
+        psql -h localhost -U postgres -d weather_pipeline -f config/schema.sql
+        echo "Database schema initialized"
+
+    - name: Fetch weather data
+      env:
+        API_KEY: ${{ secrets.WEATHER_API_KEY || '51e66d293f315eb6295deed2003c5082' }}
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: weather_pipeline
+        DB_USER: postgres
+        DB_PASSWORD: postgres_pwd
+      run: |
+        python3 run.py
+
+    - name: Run Data Quality Tests
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: weather_pipeline
+        DB_USER: postgres
+        DB_PASSWORD: postgres_pwd
+      run: |
+        pytest tests/test_data_quality.py -v --tb=short --junit-xml=test-results.xml --html=test-report.html --self-contained-html
+
+    - name: Generate Coverage Report
+      env:
+        DB_HOST: localhost
+        DB_PORT: 5432
+        DB_NAME: weather_pipeline
+        DB_USER: postgres
+        DB_PASSWORD: postgres_pwd
+      run: |
+        pytest tests/test_data_quality.py --cov=src --cov-report=html --cov-report=term
+
+    - name: Upload Test Results
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-results
+        path: |
+          test-results.xml
+          test-report.html
+        retention-days: 30
+
+    - name: Upload Coverage Report
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: coverage-report
+        path: htmlcov/
+        retention-days: 30
+
+    - name: Upload Logs
+      if: always()
+      uses: actions/upload-artifact@v3
+      with:
+        name: pipeline-logs
+        path: logs/
+        retention-days: 30
+
+    - name: Test Summary
+      if: always()
+      run: |
+        echo "## Data Quality Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "✅ Tests completed" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Artifacts Generated:" >> $GITHUB_STEP_SUMMARY
+        echo "- 📊 Test Report (HTML)" >> $GITHUB_STEP_SUMMARY
+        echo "- 📈 Coverage Report" >> $GITHUB_STEP_SUMMARY
+        echo "- 📝 Pipeline Logs" >> $GITHUB_STEP_SUMMARY
+
+    - name: Publish Test Report
+      if: always()
+      uses: dorny/test-reporter@v1
+      with:
+        name: Data Quality Test Results
+        path: 'test-results.xml'
+        reporter: 'java-junit'
